@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* Lotto Ball 3D Shading Effects */
+  .ball-yellow {
+    background: radial-gradient(circle at 35% 35%, #FFF085 0%, #FBC400 50%, #C99A00 100%);
+    color: #1E293B;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+    box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.3), inset 2px 2px 5px rgba(255, 255, 255, 0.7), 0 4px 10px rgba(251, 196, 0, 0.35);
+  }
+  .ball-blue {
+    background: radial-gradient(circle at 35% 35%, #A8E5FF 0%, #69C8F2 50%, #2A88B5 100%);
+    color: #FFFFFF;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(105, 200, 242, 0.35);
+  }
+  .ball-red {
+    background: radial-gradient(circle at 35% 35%, #FFA8A8 0%, #FF7272 50%, #B82B2B 100%);
+    color: #FFFFFF;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(255, 114, 114, 0.35);
+  }
+  .ball-gray {
+    background: radial-gradient(circle at 35% 35%, #E2E8F0 0%, #AAAAAA 50%, #555555 100%);
+    color: #FFFFFF;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.4), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(170, 170, 170, 0.3);
+  }
+  .ball-green {
+    background: radial-gradient(circle at 35% 35%, #DCFCE7 0%, #B0D840 50%, #688F15 100%);
+    color: #FFFFFF;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(176, 216, 64, 0.35);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0F172A;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

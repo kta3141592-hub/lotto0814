@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>로또 6/45 통계 기반 자동 번호 생성기 (+보너스 번호)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            lotto: {
+              yellow: '#FBC400',
+              blue: '#69C8F2',
+              red: '#FF7272',
+              gray: '#AAAAAA',
+              green: '#B0D840',
+            }
+          },
+          animation: {
+            'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+          },
+          keyframes: {
+            popIn: {
+              '0%': { transform: 'scale(0.3) rotate(-10deg)', opacity: '0' },
+              '70%': { transform: 'scale(1.1) rotate(3deg)' },
+              '100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- React 18 & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel for JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Styles for 3D Lotto Balls & Scrollbar -->
+  <style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+
+    .ball-yellow {
+      background: radial-gradient(circle at 35% 35%, #FFF085 0%, #FBC400 50%, #C99A00 100%);
+      color: #1E293B;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+      box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.3), inset 2px 2px 5px rgba(255, 255, 255, 0.7), 0 4px 10px rgba(251, 196, 0, 0.35);
+    }
+    .ball-blue {
+      background: radial-gradient(circle at 35% 35%, #A8E5FF 0%, #69C8F2 50%, #2A88B5 100%);
+      color: #FFFFFF;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(105, 200, 242, 0.35);
+    }
+    .ball-red {
+      background: radial-gradient(circle at 35% 35%, #FFA8A8 0%, #FF7272 50%, #B82B2B 100%);
+      color: #FFFFFF;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(255, 114, 114, 0.35);
+    }
+    .ball-gray {
+      background: radial-gradient(circle at 35% 35%, #E2E8F0 0%, #AAAAAA 50%, #555555 100%);
+      color: #FFFFFF;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.4), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(170, 170, 170, 0.3);
+    }
+    .ball-green {
+      background: radial-gradient(circle at 35% 35%, #DCFCE7 0%, #B0D840 50%, #688F15 100%);
+      color: #FFFFFF;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      box-shadow: inset -2px -2px 6px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(176, 216, 64, 0.35);
+    }
+
+    /* Hide scrollbar for clean ball row */
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-none {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0F172A;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen selection:bg-amber-400 selection:text-slate-900">
+  <div id="root"></div>
+
+  <!-- React Application Logic -->
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    // Ball color helper
+    function getBallColorClass(num) {
+      const n = Number(num);
+      if (n >= 1 && n <= 10) return 'ball-yellow';
+      if (n >= 11 && n <= 20) return 'ball-blue';
+      if (n >= 21 && n <= 30) return 'ball-red';
+      if (n >= 31 && n <= 40) return 'ball-gray';
+      if (n >= 41 && n <= 45) return 'ball-green';
+      return 'ball-gray';
+    }
+
+    // LottoBall Component
+    function LottoBall({ number, size = 'md', badge = null, dimmed = false, onClick = null }) {
+      const colorClass = getBallColorClass(number);
+      const sizeClasses = {
+        sm: 'w-7 h-7 text-xs font-bold',
+        md: 'w-9 h-9 sm:w-10 sm:h-10 text-xs sm:text-sm font-extrabold',
+        lg: 'w-10 h-10 sm:w-11 sm:h-11 text-xs sm:text-sm font-black',
+        xl: 'w-12 h-12 text-base font-black',
+      };
+
+      const badgeMap = {
+        fixed: { text: '고정', bg: 'bg-emerald-500 text-white' },
+        excluded: { text: '제외', bg: 'bg-rose-500 text-white' },
+        hot: { text: 'HOT', bg: 'bg-amber-500 text-slate-950 font-black' },
+        cold: { text: 'COLD', bg: 'bg-cyan-600 text-white font-bold' },
+        bonus: { text: '보너스', bg: 'bg-indigo-500 text-white font-bold' }
+      };
+
+      const badgeObj = badgeMap[badge];
+
+      return (
+        <div className="relative inline-flex items-center justify-center select-none shrink-0">
+          <div
+            onClick={onClick}
+            className={`
+              relative flex items-center justify-center rounded-full transition-all duration-300
+              ${sizeClasses[size] || sizeClasses.md}
+              ${colorClass}
+              ${dimmed ? 'opacity-30 grayscale filter' : 'hover:scale-110 cursor-pointer'}
+              ${onClick ? 'active:scale-95' : ''}
+            `}
+          >
+            <div className="absolute top-1 left-2 w-2 h-1 bg-white/40 rounded-full blur-[0.5px] pointer-events-none" />
+            <span className="z-10 leading-none drop-shadow-sm">{number}</span>
+          </div>
+
+          {badgeObj && (
+            <span className={`absolute -top-1.5 -right-1 px-1 py-0.5 rounded-full text-[9px] leading-none shadow-sm z-20 pointer-events-none ${badgeObj.bg}`}>
+              {badgeObj.text}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // Weighted Random Sampling Algorithm (Includes Bonus Number)
+    function generateLottoGames({ frequencies = {}, bonusFrequencies = {}, fixedNumbers = [], excludedNumbers = [], baseWeight = 1, numGames = 5 }) {
+      const fixedSet = new Set(fixedNumbers.map(Number));
+      const excludedSet = new Set(excludedNumbers.map(Number));
+
+      const candidatePool = [];
+      for (let i = 1; i <= 45; i++) {
+        if (!fixedSet.has(i) && !excludedSet.has(i)) {
+          candidatePool.push(i);
+        }
+      }
+
+      const getWeight = (num) => {
+        const count = frequencies[num] || 0;
+        return Math.max(0.1, count + baseWeight);
+      };
+
+      const getBonusWeight = (num) => {
+        const totalCount = frequencies[num] || 0;
+        const bonusCount = bonusFrequencies[num] || 0;
+        return Math.max(0.1, totalCount + (bonusCount * 2) + baseWeight);
+      };
+
+      const gameLabels = ['A', 'B', 'C', 'D', 'E'];
+      const games = [];
+
+      for (let g = 0; g < numGames; g++) {
+        const currentSet = new Set(fixedSet);
+        let currentCandidates = [...candidatePool];
+
+        // Pick 6 Main Numbers
+        while (currentSet.size < 6 && currentCandidates.length > 0) {
+          const currentWeights = currentCandidates.map(num => getWeight(num));
+          const totalWeight = currentWeights.reduce((acc, w) => acc + w, 0);
+
+          let randomVal = Math.random() * totalWeight;
+          let selectedIdx = 0;
+
+          for (let i = 0; i < currentCandidates.length; i++) {
+            randomVal -= currentWeights[i];
+            if (randomVal <= 0) {
+              selectedIdx = i;
+              break;
+            }
+          }
+
+          const selectedNum = currentCandidates[selectedIdx];
+          currentSet.add(selectedNum);
+          currentCandidates.splice(selectedIdx, 1);
+        }
+
+        const sortedNumbers = Array.from(currentSet).sort((a, b) => a - b);
+
+        // Pick 1 Bonus Number
+        let bonusCandidatePool = [];
+        for (let i = 1; i <= 45; i++) {
+          if (!currentSet.has(i) && !excludedSet.has(i)) {
+            bonusCandidatePool.push(i);
+          }
+        }
+
+        let bonusNumber = null;
+        if (bonusCandidatePool.length > 0) {
+          const bonusWeights = bonusCandidatePool.map(num => getBonusWeight(num));
+          const totalBonusWeight = bonusWeights.reduce((acc, w) => acc + w, 0);
+
+          let randomVal = Math.random() * totalBonusWeight;
+          let selectedIdx = 0;
+
+          for (let i = 0; i < bonusCandidatePool.length; i++) {
+            randomVal -= bonusWeights[i];
+            if (randomVal <= 0) {
+              selectedIdx = i;
+              break;
+            }
+          }
+          bonusNumber = bonusCandidatePool[selectedIdx];
+        }
+
+        games.push({
+          label: gameLabels[g] || `Game ${g + 1}`,
+          numbers: sortedNumbers,
+          bonusNumber: bonusNumber,
+          fixedNumbersUsed: sortedNumbers.filter(n => fixedSet.has(n)),
+        });
+      }
+
+      return games;
+    }
+
+    // NumberSelector Component
+    function NumberSelector({ fixedNumbers, setFixedNumbers, excludedNumbers, setExcludedNumbers }) {
+      const [activeTab, setActiveTab] = useState('fixed');
+      const [warningMsg, setWarningMsg] = useState('');
+
+      const showWarning = (msg) => {
+        setWarningMsg(msg);
+        setTimeout(() => setWarningMsg(''), 3000);
+      };
+
+      const handleBallClick = (num) => {
+        setWarningMsg('');
+        const n = Number(num);
+
+        if (activeTab === 'fixed') {
+          if (fixedNumbers.includes(n)) {
+            setFixedNumbers(fixedNumbers.filter(x => x !== n));
+          } else {
+            if (excludedNumbers.includes(n)) {
+              showWarning(`${n}번은 제외 번호로 설정되어 있어 고정 번호로 지정할 수 없습니다.`);
+              return;
+            }
+            if (fixedNumbers.length >= 5) {
+              showWarning('고정 번호는 최대 5개까지 설정할 수 있습니다.');
+              return;
+            }
+            setFixedNumbers([...fixedNumbers, n].sort((a, b) => a - b));
+          }
+        } else {
+          if (excludedNumbers.includes(n)) {
+            setExcludedNumbers(excludedNumbers.filter(x => x !== n));
+          } else {
+            if (fixedNumbers.includes(n)) {
+              showWarning(`${n}번은 고정 번호로 설정되어 있어 제외 번호로 지정할 수 없습니다.`);
+              return;
+            }
+            if (excludedNumbers.length >= 10) {
+              showWarning('제외 번호는 최대 10개까지 설정할 수 있습니다.');
+              return;
+            }
+            setExcludedNumbers([...excludedNumbers, n].sort((a, b) => a - b));
+          }
+        }
+      };
+
+      return (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800">
+            <div>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <span className="text-amber-400">⚙️</span> 고정 / 제외 번호 필터
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                원하는 번호를 필수 포함(고정)하거나 완전 제거(제외)하세요.
+              </p>
+            </div>
+
+            <button
+              onClick={() => { setFixedNumbers([]); setExcludedNumbers([]); setWarningMsg(''); }}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-800 rounded-lg transition-colors"
+            >
+              🔄 초기화
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button
+              onClick={() => setActiveTab('fixed')}
+              className={`py-2.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                activeTab === 'fixed'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-lg'
+                  : 'bg-slate-800/50 text-slate-400 border border-slate-700/50'
+              }`}
+            >
+              🔒 고정 번호
+              <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'fixed' ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-700 text-slate-300'}`}>
+                {fixedNumbers.length} / 5
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('excluded')}
+              className={`py-2.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                activeTab === 'excluded'
+                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-lg'
+                  : 'bg-slate-800/50 text-slate-400 border border-slate-700/50'
+              }`}
+            >
+              🚫 제외 번호
+              <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'excluded' ? 'bg-rose-500 text-white font-black' : 'bg-slate-700 text-slate-300'}`}>
+                {excludedNumbers.length} / 10
+              </span>
+            </button>
+          </div>
+
+          {warningMsg && (
+            <div className="mb-4 p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-300 text-xs animate-pulse">
+              ⚠️ {warningMsg}
+            </div>
+          )}
+
+          <div className="mb-4 p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-emerald-400 shrink-0">✅ 고정 ({fixedNumbers.length}):</span>
+              {fixedNumbers.length === 0 ? <span className="text-slate-500 italic">선택 없음 (최대 5개)</span> : fixedNumbers.map(n => (
+                <span key={n} onClick={() => setFixedNumbers(fixedNumbers.filter(x => x !== n))} className="inline-flex items-center gap-1 bg-emerald-950 border border-emerald-700 px-2 py-0.5 rounded text-emerald-300 cursor-pointer">
+                  <span className="font-bold">{n}</span> ✕
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-rose-400 shrink-0">🚫 제외 ({excludedNumbers.length}):</span>
+              {excludedNumbers.length === 0 ? <span className="text-slate-500 italic">선택 없음 (최대 10개)</span> : excludedNumbers.map(n => (
+                <span key={n} onClick={() => setExcludedNumbers(excludedNumbers.filter(x => x !== n))} className="inline-flex items-center gap-1 bg-rose-950 border border-rose-700 px-2 py-0.5 rounded text-rose-300 cursor-pointer">
+                  <span className="font-bold line-through">{n}</span> ✕
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 justify-items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+            {Array.from({ length: 45 }, (_, i) => i + 1).map((num) => {
+              const isFixed = fixedNumbers.includes(num);
+              const isExcluded = excludedNumbers.includes(num);
+              let badgeState = null;
+              if (isFixed) badgeState = 'fixed';
+              if (isExcluded) badgeState = 'excluded';
+
+              return (
+                <div
+                  key={num}
+                  className={`p-1 rounded-xl transition-all cursor-pointer ${
+                    isFixed ? 'ring-2 ring-emerald-400 bg-emerald-500/10 scale-105' : ''
+                  } ${
+                    isExcluded ? 'ring-2 ring-rose-500/60 bg-rose-500/10 opacity-50' : ''
+                  } ${!isFixed && !isExcluded ? 'hover:bg-slate-800/80 hover:scale-105' : ''}`}
+                  onClick={() => handleBallClick(num)}
+                >
+                  <LottoBall number={num} size="md" badge={badgeState} dimmed={isExcluded} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // LottoTicket Component (Pinned Copy Button on Right)
+    function LottoTicket({ games, onGenerate, isGenerating, fixedNumbers = [], analyzedRounds = 30 }) {
+      const [copiedAll, setCopiedAll] = useState(false);
+      const [copiedIndex, setCopiedIndex] = useState(null);
+
+      const triggerConfetti = () => {
+        try {
+          if (window.confetti) {
+            window.confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
+          }
+        } catch(e){}
+      };
+
+      const handleGenerateClick = () => {
+        onGenerate();
+        triggerConfetti();
+      };
+
+      const formatNumbersText = (numbers) => numbers.map(n => String(n).padStart(2, '0')).join(', ');
+
+      const copySingle = (game, idx) => {
+        let text = `[로또 6/45] 게임 ${game.label} : ${formatNumbersText(game.numbers)}`;
+        if (game.bonusNumber) {
+          text += ` + 보너스 ${String(game.bonusNumber).padStart(2, '0')}`;
+        }
+        navigator.clipboard.writeText(text);
+        setCopiedIndex(idx);
+        setTimeout(() => setCopiedIndex(null), 2000);
+      };
+
+      const copyAll = () => {
+        if (!games || games.length === 0) return;
+        let text = `[로또 6/45 통계 기반 (최근 ${analyzedRounds}회차 가중치) 5게임 + 보너스 추천 조합]\n`;
+        games.forEach((g) => {
+          text += `게임 ${g.label} : ${formatNumbersText(g.numbers)}`;
+          if (g.bonusNumber) {
+            text += ` + 보너스 ${String(g.bonusNumber).padStart(2, '0')}`;
+          }
+          text += '\n';
+        });
+        text += `\n* 생성 일시: ${new Date().toLocaleString('ko-KR')}`;
+        navigator.clipboard.writeText(text);
+        setCopiedAll(true);
+        setTimeout(() => setCopiedAll(false), 2500);
+      };
+
+      return (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <div>
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-extrabold rounded-md uppercase">
+                  6개 본 번호 + 1개 보너스 번호
+                </span>
+                <h2 className="text-xl font-black text-slate-100 mt-1">🎫 5게임 번호 조합 (+보너스)</h2>
+              </div>
+
+              <button
+                onClick={handleGenerateClick}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-sm shadow-lg bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                <span>{isGenerating ? '추첨 중...' : '🎲 가중치 5게임 추첨'}</span>
+              </button>
+            </div>
+
+            {(!games || games.length === 0) && (
+              <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/40 my-4">
+                <p className="text-slate-300 font-bold text-base">가중치 5게임 추첨 버튼을 눌러주세요</p>
+                <p className="text-slate-500 text-xs mt-1">과거 당첨 빈도수 통계 알고리즘이 적용된 조합을 생성합니다.</p>
+              </div>
+            )}
+
+            {games && games.length > 0 && (
+              <div className="space-y-3 my-4">
+                {games.map((game, idx) => (
+                  <div key={game.label} className="flex items-center justify-between gap-3 p-3 bg-slate-950/70 border border-slate-800 rounded-xl hover:border-amber-500/40 transition-all">
+                    {/* Left: Scrollable ball row */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-x-auto py-1 scrollbar-none">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-xs sm:text-sm shrink-0 mr-0.5 sm:mr-1">
+                        {game.label}
+                      </div>
+
+                      {game.numbers.map((num) => (
+                        <LottoBall key={num} number={num} size="md" badge={fixedNumbers.includes(num) ? 'fixed' : null} />
+                      ))}
+
+                      {game.bonusNumber && (
+                        <React.Fragment>
+                          <span className="text-amber-400 font-black text-sm sm:text-base px-0.5 sm:px-1 shrink-0 select-none">+</span>
+                          <LottoBall number={game.bonusNumber} size="md" badge="bonus" />
+                        </React.Fragment>
+                      )}
+                    </div>
+
+                    {/* Right: Pinned Copy Button */}
+                    <button
+                      onClick={() => copySingle(game, idx)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-bold border border-slate-700 transition-colors shrink-0 ml-1 shadow-sm"
+                    >
+                      {copiedIndex === idx ? '✅ 복사됨' : '📋 복사'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {games && games.length > 0 && (
+            <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-xs text-slate-400">💡 6개 본 번호 + 1개 보너스 번호 배정이 완료되었습니다.</span>
+              <button
+                onClick={copyAll}
+                className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                  copiedAll ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
+                }`}
+              >
+                {copiedAll ? '✅ 5게임 전체 복사 완료!' : '📋 전체 5게임 (+보너스) 클립보드 복사'}
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // StatsDashboard Component
+    function StatsDashboard({ statsData, loading, roundCount, onRoundCountChange, onRefresh }) {
+      const [viewMode, setViewMode] = useState('heatmap');
+
+      if (loading && (!statsData || !statsData.frequencies)) {
+        return (
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-12 text-center backdrop-blur-sm">
+            <p className="text-slate-300 font-bold">동행복권 최신 당첨 통계 데이터를 집계하는 중입니다...</p>
+          </div>
+        );
+      }
+
+      const {
+        totalRoundsAnalyzed = 30,
+        frequencies = {},
+        hotNumbers = [],
+        coldNumbers = [],
+        drawHistory = []
+      } = statsData || {};
+
+      const maxFreq = Math.max(...Object.values(frequencies), 1);
+
+      return (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-black text-slate-100">📊 당첨 통계 & 가중치 히트맵</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-800 border border-slate-700 text-amber-400">
+                  최근 {totalRoundsAnalyzed}회차 분석
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">출현 빈도수가 높을수록 가중치 추첨 확률이 높아집니다.</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-semibold">분석 범위:</span>
+              {[20, 30, 50].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => onRoundCountChange(c)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    roundCount === c ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  {c}회
+                </button>
+              ))}
+              <button onClick={onRefresh} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg ml-1">🔄</button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/30 rounded-xl p-4 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-extrabold text-slate-100 text-sm">🔥 HOT 번호 Top 5 (최다 출현)</h3>
+                <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">가중치 최고</span>
+              </div>
+              <div className="flex items-center justify-around gap-2 pt-1">
+                {hotNumbers.map((item) => (
+                  <div key={item.num} className="flex flex-col items-center gap-1">
+                    <LottoBall number={item.num} size="lg" badge="hot" />
+                    <span className="text-[11px] font-bold text-amber-300">{item.count}회</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-cyan-950/40 via-slate-950 to-slate-950 border border-cyan-500/30 rounded-xl p-4 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-extrabold text-slate-100 text-sm">❄️ COLD 번호 Top 5 (최저 출현)</h3>
+                <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">가중치 낮은 편</span>
+              </div>
+              <div className="flex items-center justify-around gap-2 pt-1">
+                {coldNumbers.map((item) => (
+                  <div key={item.num} className="flex flex-col items-center gap-1">
+                    <LottoBall number={item.num} size="lg" badge="cold" />
+                    <span className="text-[11px] font-bold text-cyan-300">{item.count}회</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode('heatmap')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  viewMode === 'heatmap' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400'
+                }`}
+              >
+                ▦ 1~45 히트맵 Grid
+              </button>
+              <button
+                onClick={() => setViewMode('history')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  viewMode === 'history' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400'
+                }`}
+              >
+                📅 최근 당첨 이력 ({drawHistory.length})
+              </button>
+            </div>
+
+            <div className="hidden md:flex items-center gap-3 text-[11px] font-semibold text-slate-400">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#FBC400]"></span> 1~10</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#69C8F2]"></span> 11~20</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#FF7272]"></span> 21~30</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#AAAAAA]"></span> 31~40</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#B0D840]"></span> 41~45</span>
+            </div>
+          </div>
+
+          {viewMode === 'heatmap' && (
+            <div className="grid grid-cols-5 sm:grid-cols-9 gap-2.5 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+              {Array.from({ length: 45 }, (_, i) => i + 1).map((num) => {
+                const count = frequencies[num] || 0;
+                const ratio = maxFreq > 0 ? count / maxFreq : 0;
+                return (
+                  <div key={num} className="flex flex-col items-center justify-center p-2 rounded-xl border border-slate-800 bg-slate-900/60">
+                    <LottoBall number={num} size="md" />
+                    <span className="text-xs font-black text-slate-200 mt-1.5">{count}회</span>
+                    <div className="w-full bg-slate-800 h-1.5 rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.round(ratio * 100)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {viewMode === 'history' && (
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+              {drawHistory.map((draw) => (
+                <div key={draw.drwNo} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="font-black text-amber-400 text-sm shrink-0">{draw.drwNo}회차</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {draw.numbers.map((n) => <LottoBall key={n} number={n} size="sm" />)}
+                      <span className="text-slate-500 font-bold text-xs">+</span>
+                      <LottoBall number={draw.bonusNo} size="sm" badge="bonus" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // App Component
+    function App() {
+      const [activeTab, setActiveTab] = useState('generator');
+      const [roundCount, setRoundCount] = useState(30);
+      const [statsData, setStatsData] = useState(null);
+      const [latestDraw, setLatestDraw] = useState(null);
+      const [loadingStats, setLoadingStats] = useState(true);
+      const [isGenerating, setIsGenerating] = useState(false);
+
+      const [fixedNumbers, setFixedNumbers] = useState([]);
+      const [excludedNumbers, setExcludedNumbers] = useState([]);
+      const [games, setGames] = useState([]);
+
+      const fetchStats = useCallback(async (count = roundCount) => {
+        setLoadingStats(true);
+        try {
+          const res = await fetch(`/api/lotto/stats?count=${count}`);
+          const data = await res.json();
+          if (data && data.success) {
+            setStatsData(data.data);
+            if (data.data.drawHistory && data.data.drawHistory.length > 0) {
+              setLatestDraw(data.data.drawHistory[0]);
+            }
+          }
+        } catch (err) {
+          console.error("Fetch error:", err);
+        } finally {
+          setLoadingStats(false);
+        }
+      }, [roundCount]);
+
+      useEffect(() => {
+        fetchStats(roundCount);
+      }, [roundCount, fetchStats]);
+
+      const handleGenerate = useCallback(() => {
+        setIsGenerating(true);
+        setTimeout(() => {
+          const frequencies = statsData?.frequencies || {};
+          const bonusFrequencies = statsData?.bonusFrequencies || {};
+          const newGames = generateLottoGames({
+            frequencies,
+            bonusFrequencies,
+            fixedNumbers,
+            excludedNumbers,
+            baseWeight: 1,
+            numGames: 5
+          });
+          setGames(newGames);
+          setIsGenerating(false);
+        }, 150);
+      }, [statsData, fixedNumbers, excludedNumbers]);
+
+      useEffect(() => {
+        if (statsData && games.length === 0) {
+          handleGenerate();
+        }
+      }, [statsData, games.length, handleGenerate]);
+
+      return (
+        <div className="min-h-screen flex flex-col justify-between">
+          <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 shadow-lg">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/20">
+                  🎰
+                </div>
+                <div>
+                  <h1 className="text-lg font-black text-slate-100 tracking-tight flex items-center gap-2">
+                    로또 6/45 통계 기반 자동 번호 생성기
+                  </h1>
+                  <p className="text-xs text-slate-400">동행복권 과거 당첨 데이터 빈도 분석 기반 가중치 추첨 알고리즘 (6개 본 번호 + 1개 보너스 번호)</p>
+                </div>
+              </div>
+
+              {latestDraw && (
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-1.5 flex items-center gap-2 text-xs">
+                  <span className="font-extrabold text-amber-400 shrink-0">{latestDraw.drwNo}회 최신 당첨:</span>
+                  <div className="flex items-center gap-1">
+                    {latestDraw.numbers.map(n => <LottoBall key={n} number={n} size="sm" />)}
+                    <span className="text-slate-500 font-bold">+</span>
+                    <LottoBall number={latestDraw.bonusNo} size="sm" badge="bonus" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="max-w-6xl mx-auto px-4">
+              <nav className="flex items-center gap-2 border-t border-slate-800/80 pt-2 pb-1">
+                <button
+                  onClick={() => setActiveTab('generator')}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+                    activeTab === 'generator' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  🎲 5게임 자동 생성기 (+보너스)
+                </button>
+                <button
+                  onClick={() => setActiveTab('stats')}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+                    activeTab === 'stats' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  📊 당첨 통계 & 히트맵
+                </button>
+              </nav>
+            </div>
+          </header>
+
+          <main className="max-w-6xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+            {activeTab === 'generator' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className="lg:col-span-6 space-y-6">
+                  <NumberSelector
+                    fixedNumbers={fixedNumbers}
+                    setFixedNumbers={setFixedNumbers}
+                    excludedNumbers={excludedNumbers}
+                    setExcludedNumbers={setExcludedNumbers}
+                  />
+                </div>
+                <div className="lg:col-span-6 space-y-6">
+                  <LottoTicket
+                    games={games}
+                    onGenerate={handleGenerate}
+                    isGenerating={isGenerating}
+                    fixedNumbers={fixedNumbers}
+                    analyzedRounds={statsData?.totalRoundsAnalyzed || 30}
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'stats' && (
+              <StatsDashboard
+                statsData={statsData}
+                loading={loadingStats}
+                roundCount={roundCount}
+                onRoundCountChange={setRoundCount}
+                onRefresh={() => fetchStats(roundCount)}
+              />
+            )}
+          </main>
+
+          <footer className="bg-slate-950 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+            <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <p>© 2026 로또 6/45 통계 기반 자동 번호 생성기.</p>
+              <p className="text-slate-600">데이터 출처: 동행복권 Open API</p>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
